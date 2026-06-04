@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>minGPT — Karpathy's Clean, Educational GPT Library Explained</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.6.1/reveal.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.6.1/theme/black.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/monokai.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ==================== TITLE ==================== -->
+<section>
+    <h1 class="gradient-text">minGPT</h1>
+    <p class="subtitle">Andrej Karpathy's small, clean, educational<br>PyTorch re-implementation of <em>GPT</em></p>
+    <div class="meta-info">
+        <span>~300 lines of Python</span> · <span>Library-structured</span> · <span>Loads GPT-2 weights</span>
+    </div>
+    <p class="nav-hint">Use <kbd>→</kbd> to advance · <kbd>↓</kbd> for sub-sections · <kbd>Esc</kbd> for overview</p>
+</section>
+
+<!-- ==================== ROADMAP ==================== -->
+<section>
+    <h2>Roadmap</h2>
+    <div class="roadmap" id="roadmap">
+        <div class="roadmap-item active" data-step="1">
+            <div class="roadmap-icon">📚</div>
+            <div class="roadmap-label">What &amp; Why</div>
+        </div>
+        <div class="roadmap-arrow">→</div>
+        <div class="roadmap-item" data-step="2">
+            <div class="roadmap-icon">👁️</div>
+            <div class="roadmap-label">Causal Attention</div>
+        </div>
+        <div class="roadmap-arrow">→</div>
+        <div class="roadmap-item" data-step="3">
+            <div class="roadmap-icon">🧱</div>
+            <div class="roadmap-label">Block &amp; GPT</div>
+        </div>
+        <div class="roadmap-arrow">→</div>
+        <div class="roadmap-item" data-step="4">
+            <div class="roadmap-icon">⚙️</div>
+            <div class="roadmap-label">Config &amp; Zoo</div>
+        </div>
+        <div class="roadmap-arrow">→</div>
+        <div class="roadmap-item" data-step="5">
+            <div class="roadmap-icon">🏃</div>
+            <div class="roadmap-label">The Trainer</div>
+        </div>
+        <div class="roadmap-arrow">→</div>
+        <div class="roadmap-item" data-step="6">
+            <div class="roadmap-icon">⚖️</div>
+            <div class="roadmap-label">vs nanoGPT</div>
+        </div>
+    </div>
+</section>
+
+<!-- ==================== PART 1: WHAT & WHY ==================== -->
+<section>
+<section>
+    <h2 class="section-title">Part 1</h2>
+    <h1 class="gradient-text">What is minGPT &amp; Why</h1>
+    <p>A GPT meant to be <em>read</em> and <em>hacked</em>, not just run</p>
+</section>
+
+<section>
+    <h3>The Philosophy</h3>
+    <div class="pillars">
+        <div class="pillar">
+            <div class="pillar-icon">🤏</div>
+            <h4>Small</h4>
+            <p>The whole Transformer is ~300 lines of plain PyTorch</p>
+        </div>
+        <div class="pillar">
+            <div class="pillar-icon">🧼</div>
+            <h4>Clean</h4>
+            <p>No clever tricks; readable names, faithful to the paper</p>
+        </div>
+        <div class="pillar">
+            <div class="pillar-icon">🔍</div>
+            <h4>Interpretable</h4>
+            <p>Every tensor shape is commented and easy to trace</p>
+        </div>
+        <div class="pillar">
+            <div class="pillar-icon">🎓</div>
+            <h4>Educational</h4>
+            <p>Built to teach how GPT actually works under the hood</p>
+        </div>
+    </div>
+    <div class="explain-box">
+        <p>Karpathy's own summary: <em>"All that's going on is that a sequence of indices feeds into a Transformer, and a probability distribution over the next index in the sequence comes out."</em> minGPT favours readability over speed.</p>
+    </div>
+</section>
+
+<section>
+    <h3>A Library, Not a Script — Three Files</h3>
+    <div class="file-tree">
+<span class="ft-dir">mingpt/</span>
+  <span class="ft-file">model.py</span>    <span class="ft-comment"># GPT, Block, CausalSelfAttention, NewGELU</span>
+  <span class="ft-file">trainer.py</span>  <span class="ft-comment"># generic, model-agnostic training loop</span>
+  <span class="ft-file">bpe.py</span>      <span class="ft-comment"># refactored byte-pair encoder (GPT-2 BPE)</span>
+  <span class="ft-file">utils.py</span>    <span class="ft-comment"># CfgNode config object + helpers</span>
+<span class="ft-dir">projects/</span>
+  <span class="ft-dir">adder/</span>     <span class="ft-comment"># teach a Transformer to add numbers</span>
+  <span class="ft-dir">chargpt/</span>   <span class="ft-comment"># character-level language model</span>
+<span class="ft-file">demo.ipynb</span>     <span class="ft-comment"># sort integers with a tiny GPT</span>
+<span class="ft-file">generate.ipynb</span> <span class="ft-comment"># load pretrained GPT-2 and sample</span>
+    </div>
+    <div class="explain-box small">
+        <p><strong>The key difference from the lecture nanoGPT:</strong> minGPT is structured as a reusable <em>library</em>. You <code>import</code> the model and trainer and wire them to your own dataset — the same code trains an adder, a char-LM, or a sorter.</p>
+    </div>
+</section>
+
+<section>
+    <h3>Using It — The Whole API</h3>
+    <div class="two-col">
+        <div class="col">
+            <pre><code class="language-python">from mingpt.model import GPT
+
+model_config = GPT.get_default_config()
+model_config.model_type = 'gpt2'
+model_config.vocab_size = 50257
+model_config.block_size = 1024
+model = GPT(model_config)</code></pre>
+            <div class="explain-box small">
+                <p><strong>Construct</strong> a model from a config node. Pick a <code>model_type</code> from the zoo, or set <code>n_layer / n_head / n_embd</code> by hand.</p>
+            </div>
+        </div>
+        <div class="col">
+            <pre><code class="language-python">from mingpt.trainer import Trainer
+
+train_config = Trainer.get_default_config()
+train_config.learning_rate = 5e-4
+trainer = Trainer(train_config,
+                  model, train_dataset)
+trainer.run()</code></pre>
+            <div class="explain-box small">
+                <p><strong>Train</strong> by handing the model and any PyTorch <code>Dataset</code> to a generic <code>Trainer</code>. That is the entire user-facing surface.</p>
+            </div>
+        </div>
+    </div>
+</section>
+</section>
+
+<!-- ==================== PART 2: CAUSAL SELF-ATTENTION ==================== -->
+<section>
+<section>
+    <h2 class="section-title">Part 2</h2>
+    <h1 class="gradient-text">CausalSelfAttention</h1>
+    <p>All heads, batched, in a single tidy module</p>
+</section>
+
+<section>
+    <h3>The Projections &amp; the Mask</h3>
+    <pre><code class="language-python">class CausalSelfAttention(nn.Module):
+    """ A vanilla multi-head masked self-attention layer with a
+        projection at the end. """
+
+    def __init__(self, config):
+        super().__init__()
+        assert config.n_embd % config.n_head == 0
+        # key, query, value projections for all heads, but in a batch
+        self.c_attn = nn.Linear(config.n_embd, 3 * config.n_embd)
+        # output projection
+        self.c_proj = nn.Linear(config.n_embd, config.n_embd)
+        # regularization
+        self.attn_dropout = nn.Dropout(config.attn_pdrop)
+        self.resid_dropout = nn.Dropout(config.resid_pdrop)
+        # causal mask to ensure attention is only applied to the left
+        self.register_buffer("bias", torch.tril(torch.ones(config.block_size, config.block_size))
+                                     .view(1, 1, config.block_size, config.block_size))
+        self.n_head = config.n_head
+        self.n_embd = config.n_embd</code></pre>
+    <div class="explain-box small">
+        <p><strong>One combined Linear.</strong> <code>c_attn</code> maps <code>n_embd → 3·n_embd</code> so q, k and v for <em>every</em> head are produced in a single matmul, then split apart. <code>register_buffer("bias", …)</code> stores the lower-triangular causal mask as non-trainable state (shape <code>1×1×T×T</code> ready to broadcast over batch and heads).</p>
+    </div>
+</section>
+
+<section>
+    <h3>The Forward Pass</h3>
+    <pre><code class="language-python">def forward(self, x):
+    B, T, C = x.size() # batch, sequence length, embedding dim (n_embd)
+
+    # calculate query, key, values for all heads in batch and move head forward to be the batch dim
+    q, k ,v  = self.c_attn(x).split(self.n_embd, dim=2)
+    k = k.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+    q = q.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+    v = v.view(B, T, self.n_head, C // self.n_head).transpose(1, 2) # (B, nh, T, hs)
+
+    # causal self-attention; Self-attend: (B, nh, T, hs) x (B, nh, hs, T) -> (B, nh, T, T)
+    att = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
+    att = att.masked_fill(self.bias[:,:,:T,:T] == 0, float('-inf'))
+    att = F.softmax(att, dim=-1)
+    att = self.attn_dropout(att)
+    y = att @ v # (B, nh, T, T) x (B, nh, T, hs) -> (B, nh, T, hs)
+    y = y.transpose(1, 2).contiguous().view(B, T, C) # re-assemble all head outputs side by side
+
+    # output projection
+    y = self.resid_dropout(self.c_proj(y))
+    return y</code></pre>
+    <div class="explain-box small">
+        <p><strong>Reshape to <code>(B, nh, T, hs)</code></strong> puts the head axis next to the batch axis, so a single batched matmul does attention for all heads at once. Scale by <code>1/√hs</code>, apply the causal <code>masked_fill</code> (future → <code>-∞</code>), softmax, then aggregate values and re-assemble heads side by side before the output projection.</p>
+    </div>
+</section>
+
+<section>
+    <h3>Interactive: Causal Mask Grid</h3>
+    <div class="mask-demo">
+        <p>The registered <code>bias</code> buffer in action — click a row to see what that position can attend to:</p>
+        <div class="mask-grid" id="mask-grid"></div>
+        <div class="mask-explanation" id="mask-explain">
+            <p>Click a row to highlight what that token position can see.</p>
+        </div>
+    </div>
+</section>
+</section>
+
+<!-- ==================== PART 3: BLOCK & GPT ==================== -->
+<section>
+<section>
+    <h2 class="section-title">Part 3</h2>
+    <h1 class="gradient-text">The Block &amp; GPT Module</h1>
+    <p>Stacking attention + MLP into a full language model</p>
+</section>
+
+<section>
+    <h3>Block — Pre-LayerNorm Attention + MLP</h3>
+    <pre><code class="language-python">class Block(nn.Module):
+    """ an unassuming Transformer block """
+
+    def __init__(self, config):
+        super().__init__()
+        self.ln_1 = nn.LayerNorm(config.n_embd)
+        self.attn = CausalSelfAttention(config)
+        self.ln_2 = nn.LayerNorm(config.n_embd)
+        self.mlp = nn.ModuleDict(dict(
+            c_fc    = nn.Linear(config.n_embd, 4 * config.n_embd),
+            c_proj  = nn.Linear(4 * config.n_embd, config.n_embd),
+            act     = NewGELU(),
+            dropout = nn.Dropout(config.resid_pdrop),
+        ))
+        m = self.mlp
+        self.mlpf = lambda x: m.dropout(m.c_proj(m.act(m.c_fc(x)))) # MLP forward
+
+    def forward(self, x):
+        x = x + self.attn(self.ln_1(x))
+        x = x + self.mlpf(self.ln_2(x))
+        return x</code></pre>
+    <div class="explain-box small">
+        <p><strong>Pre-norm residuals:</strong> LayerNorm is applied <em>before</em> each sub-layer, and the output is added back (<code>x = x + …</code>). The MLP expands <strong>4×</strong> (<code>c_fc</code>), applies <code>NewGELU</code>, then projects back down (<code>c_proj</code>) — defined inline as <code>mlpf</code> for a tidy single-expression forward.</p>
+    </div>
+</section>
+
+<section>
+    <h3>GPT — Assembling the Module</h3>
+    <pre><code class="language-python">self.transformer = nn.ModuleDict(dict(
+    wte  = nn.Embedding(config.vocab_size, config.n_embd),
+    wpe  = nn.Embedding(config.block_size, config.n_embd),
+    drop = nn.Dropout(config.embd_pdrop),
+    h    = nn.ModuleList([Block(config) for _ in range(config.n_layer)]),
+    ln_f = nn.LayerNorm(config.n_embd),
+))
+self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
+
+# init all weights, and apply a special scaled init to the residual projections
+self.apply(self._init_weights)
+for pn, p in self.named_parameters():
+    if pn.endswith('c_proj.weight'):
+        torch.nn.init.normal_(p, mean=0.0, std=0.02/math.sqrt(2 * config.n_layer))</code></pre>
+    <div class="explain-box small">
+        <p><strong>A <code>ModuleDict</code> named after GPT-2:</strong> token embeddings <code>wte</code> + positional embeddings <code>wpe</code> → embedding <code>drop</code>out → <code>n_layer</code> Blocks in <code>h</code> → final norm <code>ln_f</code> → the <code>lm_head</code> producing logits over the vocabulary.</p>
+    </div>
+</section>
+
+<section>
+    <h3>Weight Init — The Special Scaled Init</h3>
+    <pre><code class="language-python">def _init_weights(self, module):
+    if isinstance(module, nn.Linear):
+        torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+        if module.bias is not None:
+            torch.nn.init.zeros_(module.bias)
+    elif isinstance(module, nn.Embedding):
+        torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
+    elif isinstance(module, nn.LayerNorm):
+        torch.nn.init.zeros_(module.bias)
+        torch.nn.init.ones_(module.weight)</code></pre>
+    <div class="explain-box">
+        <p><strong>Standard init</strong> is <code>N(0, 0.02)</code> for Linear and Embedding weights, following GPT-2.</p>
+        <p><strong>The scaled residual init</strong> (previous slide) shrinks every <code>c_proj.weight</code> by <code>1/√(2·n_layer)</code>. Because each layer adds two residual branches, this keeps the variance of the residual stream from growing as the network gets deeper — a per-GPT-2-paper trick that matters a lot for stable deep training.</p>
+    </div>
+</section>
+</section>
+
+<!-- ==================== PART 4: CONFIG & MODEL ZOO ==================== -->
+<section>
+<section>
+    <h2 class="section-title">Part 4</h2>
+    <h1 class="gradient-text">Configuration &amp; Model Zoo</h1>
+    <p>One config system, six named models, and GPT-2 weight surgery</p>
+</section>
+
+<section>
+    <h3>The CfgNode Config System</h3>
+    <pre><code class="language-python">@staticmethod
+def get_default_config():
+    C = CN()
+    # either model_type or (n_layer, n_head, n_embd) must be given
+    C.model_type = 'gpt'
+    C.n_layer = None
+    C.n_head  = None
+    C.n_embd  = None
+    # these options must be filled in externally
+    C.vocab_size = None
+    C.block_size = None
+    # dropout hyperparameters
+    C.embd_pdrop  = 0.1
+    C.resid_pdrop = 0.1
+    C.attn_pdrop  = 0.1
+    return C</code></pre>
+    <div class="explain-box small">
+        <p><strong><code>CfgNode</code> (CN)</strong> is a tiny attribute-dict config object (in <code>utils.py</code>) shared by the model and the trainer. It supports defaults, nesting, and command-line overrides — giving the library a single, consistent way to configure everything without external dependencies.</p>
+    </div>
+</section>
+
+<section>
+    <h3>Interactive: The GPT-2 Model Zoo</h3>
+    <p style="font-size:0.5em; color:var(--text-muted);">A single <code>model_type</code> string expands to a full architecture. Pick one:</p>
+    <div class="zoo-demo" id="zoo-demo">
+        <div class="zoo-buttons" id="zoo-buttons"></div>
+        <div class="zoo-stats">
+            <div class="zoo-stat"><span class="zoo-stat-num" id="zoo-layer">12</span><span class="zoo-stat-label">n_layer</span></div>
+            <div class="zoo-stat"><span class="zoo-stat-num" id="zoo-head">12</span><span class="zoo-stat-label">n_head</span></div>
+            <div class="zoo-stat"><span class="zoo-stat-num" id="zoo-embd">768</span><span class="zoo-stat-label">n_embd</span></div>
+            <div class="zoo-stat"><span class="zoo-stat-num" id="zoo-params">124M</span><span class="zoo-stat-label">parameters</span></div>
+        </div>
+        <div class="zoo-params" id="zoo-desc"></div>
+    </div>
+    <div class="explain-box small">
+        <p>The zoo also includes tiny configs for experiments — <code>gpt-mini</code> (6×6×192), <code>gpt-micro</code> (4×4×128) and <code>gpt-nano</code> (3×3×48) — perfect for the adder and sorting demos.</p>
+    </div>
+</section>
+
+<section>
+    <h3>from_pretrained() — Loading GPT-2</h3>
+    <pre><code class="language-python">@classmethod
+def from_pretrained(cls, model_type):
+    """ Initialize a pretrained GPT model by copying over the weights
+        from a huggingface/transformers checkpoint. """
+    from transformers import GPT2LMHeadModel
+    model = GPT(config)                     # our from-scratch minGPT
+    model_hf = GPT2LMHeadModel.from_pretrained(model_type)
+
+    # the openai checkpoints use a "Conv1D" module, but we only want a
+    # vanilla nn.Linear. this means we have to transpose these weights.
+    transposed = ['attn.c_attn.weight', 'attn.c_proj.weight',
+                  'mlp.c_fc.weight', 'mlp.c_proj.weight']
+    for k in keys:
+        if any(k.endswith(w) for w in transposed):
+            assert sd_hf[k].shape[::-1] == sd[k].shape
+            with torch.no_grad():
+                sd[k].copy_(sd_hf[k].t())   # transpose Conv1D → Linear
+        else:
+            assert sd_hf[k].shape == sd[k].shape
+            with torch.no_grad():
+                sd[k].copy_(sd_hf[k])</code></pre>
+    <div class="explain-box small">
+        <p><strong>The weight surgery:</strong> OpenAI's GPT-2 stores attention/MLP weights in a <code>Conv1D</code> layout (transposed relative to <code>nn.Linear</code>). minGPT copies HuggingFace's state dict in, transposing exactly those four weight tensors — turning the official 124M–1.5B GPT-2 checkpoints into a runnable minGPT.</p>
+    </div>
+</section>
+
+<section>
+    <h3>configure_optimizers — Selective Weight Decay</h3>
+    <pre><code class="language-python"># separate out all parameters to those that will and won't experience decay
+decay = set()
+no_decay = set()
+whitelist_weight_modules = (torch.nn.Linear, )
+blacklist_weight_modules = (torch.nn.LayerNorm, torch.nn.Embedding)
+for mn, m in self.named_modules():
+    for pn, p in m.named_parameters():
+        fpn = '%s.%s' % (mn, pn) if mn else pn
+        if pn.endswith('bias'):
+            no_decay.add(fpn)                              # biases: no decay
+        elif pn.endswith('weight') and isinstance(m, whitelist_weight_modules):
+            decay.add(fpn)                                 # Linear weights: decay
+        elif pn.endswith('weight') and isinstance(m, blacklist_weight_modules):
+            no_decay.add(fpn)                              # LN/Embedding: no decay
+
+optim_groups = [
+    {"params": [...decay...],    "weight_decay": train_config.weight_decay},
+    {"params": [...no_decay...], "weight_decay": 0.0},
+]
+optimizer = torch.optim.AdamW(optim_groups, lr=..., betas=...)</code></pre>
+    <div class="explain-box small">
+        <p><strong>Decay matmul weights, spare the rest.</strong> Only <code>nn.Linear</code> weights get weight decay; biases, LayerNorm and Embedding parameters are exempt. AdamW then receives two parameter groups — a careful detail copied straight from how GPT-2 was actually trained.</p>
+    </div>
+</section>
+</section>
+
+<!-- ==================== PART 5: THE TRAINER ==================== -->
+<section>
+<section>
+    <h2 class="section-title">Part 5</h2>
+    <h1 class="gradient-text">The Trainer</h1>
+    <p>A framework-agnostic loop with an event/callback system</p>
+</section>
+
+<section>
+    <h3>Callbacks &amp; Events</h3>
+    <pre><code class="language-python">class Trainer:
+
+    def __init__(self, config, model, train_dataset):
+        self.callbacks = defaultdict(list)
+        ...
+
+    def add_callback(self, onevent: str, callback):
+        self.callbacks[onevent].append(callback)
+
+    def set_callback(self, onevent: str, callback):
+        self.callbacks[onevent] = [callback]
+
+    def trigger_callbacks(self, onevent: str):
+        for callback in self.callbacks.get(onevent, []):
+            callback(self)</code></pre>
+    <div class="event-flow">
+        <span class="event-chip">trainer.add_callback(</span>
+        <span class="event-arrow">→</span>
+        <span class="event-chip">'on_batch_end'</span>
+        <span class="event-arrow">→</span>
+        <span class="event-chip">batch_end_callback )</span>
+    </div>
+    <div class="explain-box small">
+        <p><strong>The Trainer knows nothing about your task.</strong> Instead of hard-coded logging/eval, it fires named events; you attach callbacks (e.g. print the loss, sample from the model, save a checkpoint) on <code>'on_batch_end'</code>. This keeps the loop generic and reusable across every demo.</p>
+    </div>
+</section>
+
+<section>
+    <h3>The run() Loop</h3>
+    <pre><code class="language-python">def run(self):
+    model, config = self.model, self.config
+    self.optimizer = model.configure_optimizers(config)
+
+    train_loader = DataLoader(
+        self.train_dataset,
+        sampler=torch.utils.data.RandomSampler(self.train_dataset, replacement=True, num_samples=int(1e10)),
+        shuffle=False, pin_memory=True,
+        batch_size=config.batch_size,
+        num_workers=config.num_workers,
+    )
+
+    model.train()
+    self.iter_num = 0
+    data_iter = iter(train_loader)
+    while True:
+        batch = next(data_iter)
+        batch = [t.to(self.device) for t in batch]
+        x, y = batch
+
+        # forward the model
+        logits, self.loss = model(x, y)
+
+        # backprop and update the parameters
+        model.zero_grad(set_to_none=True)
+        self.loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_norm_clip)
+        self.optimizer.step()
+
+        self.trigger_callbacks('on_batch_end')
+        self.iter_num += 1
+        # termination conditions
+        if config.max_iters is not None and self.iter_num >= config.max_iters:
+            break</code></pre>
+    <div class="explain-box small">
+        <p><strong>Device <code>'auto'</code></strong> picks CUDA when available. An infinite <code>RandomSampler</code> yields endless batches; the loop forwards, back-props, clips gradients to <code>grad_norm_clip</code>, steps AdamW, then fires <code>on_batch_end</code> — stopping at <code>max_iters</code>.</p>
+    </div>
+</section>
+
+<section>
+    <h3>The Demos</h3>
+    <div class="two-col">
+        <div class="col">
+            <div class="explain-box">
+                <p><strong>demo.ipynb — sorting</strong></p>
+                <p>A tiny <code>gpt-nano</code> learns to <em>sort</em> a sequence of digits. The "dataset" emits random sequences and their sorted continuation; the same Transformer that does language modelling learns the sort as next-token prediction.</p>
+            </div>
+            <div class="explain-box">
+                <p><strong>projects/adder</strong></p>
+                <p>Teaches GPT to add two numbers, digit by digit — a classic demonstration that next-token prediction can learn an algorithm.</p>
+            </div>
+        </div>
+        <div class="col">
+            <div class="explain-box">
+                <p><strong>projects/chargpt</strong></p>
+                <p>Character-level language modelling on any text file — minGPT's analogue of the Tiny Shakespeare demo, but built on the reusable library.</p>
+            </div>
+            <div class="explain-box">
+                <p><strong>generate.ipynb</strong></p>
+                <p>Loads pretrained GPT-2 via <code>from_pretrained</code> and samples text — proof the from-scratch model is weight-compatible with the real thing.</p>
+            </div>
+            <div class="explain-box small">
+                <p>Run the unit tests with <code>python -m unittest discover tests</code>.</p>
+            </div>
+        </div>
+    </div>
+</section>
+</section>
+
+<!-- ==================== PART 6: minGPT vs nanoGPT ==================== -->
+<section>
+<section>
+    <h2 class="section-title">Part 6</h2>
+    <h1 class="gradient-text">minGPT vs nanoGPT</h1>
+    <p>The educational original and its faster successor</p>
+</section>
+
+<section>
+    <h3>Two Decks, Two Goals</h3>
+    <div class="deck-compare">
+        <div class="deck-card min">
+            <h4>minGPT</h4>
+            <ul>
+                <li>Clean &amp; educational — built to be read</li>
+                <li>Library-structured: model / trainer / bpe</li>
+                <li>Generic Trainer with callbacks</li>
+                <li>CfgNode config + named model zoo</li>
+                <li>Loads GPT-2 weights (weight surgery)</li>
+                <li>Semi-archived Jan 2023</li>
+            </ul>
+        </div>
+        <div class="deck-card nano">
+            <h4>nanoGPT</h4>
+            <ul>
+                <li>A rewrite "with teeth" — still simple, but fast</li>
+                <li>Single-file <code>model.py</code> + <code>train.py</code></li>
+                <li>Actually reproduces GPT-2 on OpenWebText</li>
+                <li><code>torch.compile</code>, DDP, flash attention</li>
+                <li>Mixed precision &amp; gradient accumulation</li>
+                <li>The active, production-leaning successor</li>
+            </ul>
+        </div>
+    </div>
+    <div class="explain-box small">
+        <p>In Karpathy's words, nanoGPT shifts focus <em>"from sole education to something that is still simple and hackable but has teeth"</em> — adding industry-benchmark reproduction and runtime efficiency on top of the same core architecture.</p>
+    </div>
+</section>
+
+<section>
+    <h2>Side by Side</h2>
+    <div class="comparison-table">
+        <table>
+            <thead>
+                <tr><th></th><th>minGPT</th><th>nanoGPT</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Primary goal</td><td>Education / readability</td><td>Reproduce GPT-2, fast</td></tr>
+                <tr><td>Structure</td><td>Library (model / trainer / bpe)</td><td>Two flat files</td></tr>
+                <tr><td>Training loop</td><td>Generic Trainer + callbacks</td><td>Bespoke <code>train.py</code></td></tr>
+                <tr><td>Attention</td><td>Manual softmax matmul</td><td>Flash attention</td></tr>
+                <tr><td>Speed features</td><td>—</td><td>compile, DDP, AMP, grad-accum</td></tr>
+                <tr><td>Config</td><td>CfgNode object</td><td>configurator / globals</td></tr>
+                <tr><td>Status</td><td>Semi-archived (2023)</td><td>Active successor</td></tr>
+            </tbody>
+        </table>
+        <p class="table-note">Both share the same GPT architecture — embeddings, pre-norm Blocks, causal attention, tied head. nanoGPT is essentially minGPT optimised for real training runs.</p>
+    </div>
+</section>
+</section>
+
+<!-- ==================== SUMMARY ==================== -->
+<section>
+<section>
+    <h2 class="gradient-text">minGPT at a Glance</h2>
+    <div class="summary-grid">
+        <div class="summary-card">
+            <h4>The Library</h4>
+            <ul>
+                <li>model.py — GPT + Block + attn</li>
+                <li>trainer.py — generic loop</li>
+                <li>bpe.py — GPT-2 tokenizer</li>
+                <li>utils.py — CfgNode config</li>
+            </ul>
+        </div>
+        <div class="summary-card">
+            <h4>The Model</h4>
+            <ul>
+                <li>wte + wpe embeddings</li>
+                <li>n_layer pre-norm Blocks</li>
+                <li>Batched multi-head attn</li>
+                <li>4× GELU MLP + ln_f + head</li>
+            </ul>
+        </div>
+        <div class="summary-card">
+            <h4>The Details</h4>
+            <ul>
+                <li>Scaled c_proj residual init</li>
+                <li>Selective weight decay</li>
+                <li>GPT-2 from_pretrained</li>
+                <li>Conv1D → Linear surgery</li>
+            </ul>
+        </div>
+        <div class="summary-card">
+            <h4>The Demos</h4>
+            <ul>
+                <li>Sort integers (demo.ipynb)</li>
+                <li>Adder project</li>
+                <li>chargpt char-LM</li>
+                <li>GPT-2 generation</li>
+            </ul>
+        </div>
+    </div>
+</section>
+
+<section>
+    <h2>Where This Fits — Zero to Hero</h2>
+    <div class="zth-ladder">
+        <div class="zth-rung">
+            <span class="zth-step">1</span>
+            <span>micrograd &amp; makemore — autograd, MLPs, and the bigram/Wavenet language models</span>
+        </div>
+        <div class="zth-rung linked">
+            <span class="zth-step">2</span>
+            <span>nanoGPT lecture — build a GPT from scratch &nbsp;·&nbsp; <a href="https://brendanjameslynskey.github.io/nanoGPT_presentation/" target="_blank">see the nanoGPT deck →</a></span>
+        </div>
+        <div class="zth-rung current">
+            <span class="zth-step">3</span>
+            <span><strong>minGPT (you are here)</strong> — the same GPT as a clean, hackable library that loads real GPT-2 weights</span>
+        </div>
+        <div class="zth-rung">
+            <span class="zth-step">4</span>
+            <span>nanoGPT (repo) — scale up: reproduce GPT-2 with compile, DDP and flash attention</span>
+        </div>
+    </div>
+    <div class="context-box">
+        <p>This deck is the companion to the <a href="https://brendanjameslynskey.github.io/nanoGPT_presentation/" target="_blank">nanoGPT presentation</a>. That deck builds GPT line-by-line from a single script; this one shows how Karpathy packaged the very same architecture as a reusable library — and how it grew into the faster nanoGPT.</p>
+    </div>
+</section>
+
+<section>
+    <h2>Key Takeaways</h2>
+    <div class="takeaways">
+        <div class="takeaway">
+            <span class="takeaway-num">1</span>
+            <p><strong>Clarity is a feature.</strong> minGPT proves a real, GPT-2-compatible Transformer fits in ~300 readable lines. Every shape is commented; nothing is hidden behind abstraction.</p>
+        </div>
+        <div class="takeaway">
+            <span class="takeaway-num">2</span>
+            <p><strong>Good design separates concerns.</strong> A model, a generic callback-driven trainer, a config object and a tokenizer — the same code trains an adder, a sorter, or a language model.</p>
+        </div>
+        <div class="takeaway">
+            <span class="takeaway-num">3</span>
+            <p><strong>The details are the lesson.</strong> Scaled residual init, selective weight decay, and Conv1D→Linear weight surgery are exactly the touches that let it load and match real GPT-2 — and that nanoGPT then optimised for speed.</p>
+        </div>
+    </div>
+    <div class="credits">
+        <p>Based on Andrej Karpathy's <a href="https://github.com/karpathy/minGPT" target="_blank">minGPT</a> — a minimal PyTorch re-implementation of GPT</p>
+        <p>Companion deck: <a href="https://brendanjameslynskey.github.io/nanoGPT_presentation/" target="_blank">Building GPT From Scratch (nanoGPT)</a></p>
+    </div>
+</section>
+</section>
+
+</div><!-- /slides -->
+</div><!-- /reveal -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.6.1/reveal.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.6.1/plugin/highlight/highlight.min.js"></script>
+<script src="interactive.js"></script>
+<script>
+Reveal.initialize({
+    hash: true,
+    slideNumber: true,
+    transition: 'slide',
+    backgroundTransition: 'fade',
+    plugins: [ RevealHighlight ],
+    width: 1200,
+    height: 700,
+    margin: 0.04,
+});
+</script>
+</body>
+</html>
