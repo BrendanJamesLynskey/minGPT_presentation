@@ -12,13 +12,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Header row
     const corner = document.createElement('div');
-    corner.style.cssText = 'font-size:0.35em; color:rgba(255,255,255,0.3); display:flex; align-items:center; justify-content:center;';
+    corner.style.cssText = 'font-size:0.35em; color:rgba(251,247,244,0.3); display:flex; align-items:center; justify-content:center;';
     corner.textContent = 'Q\\K';
     grid.appendChild(corner);
 
     for (let j = 0; j < size; j++) {
         const header = document.createElement('div');
-        header.style.cssText = 'font-size:0.4em; font-family:monospace; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,0.5);';
+        header.style.cssText = 'font-size:0.4em; font-family:monospace; display:flex; align-items:center; justify-content:center; color:rgba(251,247,244,0.5);';
         header.textContent = tokens[j] === ' ' ? '␣' : tokens[j];
         grid.appendChild(header);
     }
@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Grid cells
     for (let i = 0; i < size; i++) {
         const rowLabel = document.createElement('div');
-        rowLabel.style.cssText = 'font-size:0.4em; font-family:monospace; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,0.5);';
+        rowLabel.style.cssText = 'font-size:0.4em; font-family:monospace; display:flex; align-items:center; justify-content:center; color:rgba(251,247,244,0.5);';
         rowLabel.textContent = tokens[i] === ' ' ? '␣' : tokens[i];
         grid.appendChild(rowLabel);
 
